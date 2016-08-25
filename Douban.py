@@ -22,9 +22,41 @@ def search_book_by_name(name):
     page_num = 0
 
     # url = "https://book.douban.com/subject_search?search_text=%E8%A7%A3%E5%BF%A7"
-    base = "https://book.douban.com/subject_search?search_text="
-    url_name = urllib.quote(name)
-    url = base + url_name
+    url = "https://book.douban.com/subject_search?search_text=" + urllib.quote(name.encode('utf8'))
+
+    try:
+        req = urllib2.Request(url, headers=hds[page_num % len(hds)])
+        source_code = urllib2.urlopen(req).read()
+        html_text = str(source_code)
+    except (urllib2.HTTPError, urllib2.URLError), e:
+        print e
+
+    return html_text
+
+
+def search_book_on_z(name):
+    html_text = ""
+    page_num = 0
+
+    # https://www.amazon.cn/s/ref=nb_sb_noss?__mk_zh_CN=亚马逊网站&url=search-alias%3Daps&field-keywords=活着
+    url = "https://www.amazon.cn/s/ref=nb_sb_noss?__mk_zh_CN=亚马逊网站&url=search-alias%3Daps&field-keywords=" + urllib.quote(name.encode('utf8'))
+
+    try:
+        req = urllib2.Request(url, headers=hds[page_num % len(hds)])
+        source_code = urllib2.urlopen(req).read()
+        html_text = str(source_code)
+    except (urllib2.HTTPError, urllib2.URLError), e:
+        print e
+
+    return html_text
+
+
+def search_book_on_j(name):
+    html_text = ""
+    page_num = 0
+
+    # http://search.jd.com/Search?keyword=%E9%B2%81%E8%BF%85&enc=utf-8
+    url = "http://search.jd.com/Search?keyword=%s&enc=utf-8" % urllib.quote(name.encode('utf8'))
 
     try:
         req = urllib2.Request(url, headers=hds[page_num % len(hds)])
@@ -43,10 +75,7 @@ def search_book_by_tag(tag, pages=1):
     number_per_page = 20
     page_num = number_per_page * (pages - 1)
 
-    base = "https://book.douban.com/tag/"
-    suffix = urllib.quote(tag) + "?start=" + str(page_num) + "&type=T"
-
-    url = base + suffix
+    url = "https://book.douban.com/tag/%s?start=%d&type=T" % (urllib.quote(tag), page_num)
 
     try:
         req = urllib2.Request(url, headers=hds[page_num % len(hds)])
@@ -94,7 +123,7 @@ def get_detail_by_url(url):
 def parse_book_details(html_text):
     soup = BeautifulSoup(html_text, 'html.parser')
     book_html = soup.find('div', {'id': 'wrapper'})
-    title = book_html.find('h1').find('span').string
+    title = book_html.find('h1').find('span').string.strip()
 
     list_details = book_html.find(id='info').find_all('span', {'class': 'pl'})
     book = {}
@@ -118,6 +147,29 @@ def parse_book_details(html_text):
             book['intro'] = book['intro'] + intro.string + "\n"
 
     print book['title'], book['ISBN'], book['rating'], book['rating_people'], book['intro']
+    return book
+
+
+def parse_book_sale_on_z(html_text):
+    soup = BeautifulSoup(html_text, 'html.parser')
+    book_list = soup.find(id='atfResults').find('ul').find_all('li')
+    if book_list is not None and len(book_list) > 0:
+        book = book_list[0]
+        title = book.find('h2', {'class': 's-access-title'}).string
+        price = book.find('span', {'class': 's-price'}).string
+    print title, price
+    return price
+
+
+def parse_book_sale_on_j(html_text):
+    soup = BeautifulSoup(html_text, 'html.parser')
+    book_list = soup.find(id='J_goodsList').find('ul').find_all('li')
+    if book_list is not None and len(book_list) > 0:
+        book = book_list[0]
+        title = book.find('div', {'class': 'p-name'}).find('font', {'class': 'skcolor_ljg'}).string
+        price = book.find('div', {'class': 'p-price'}).find('i').string
+    print title, price
+    return price
 
 
 def get_args():
@@ -134,17 +186,22 @@ def get_args():
 
 if __name__ == '__main__':
     name, tag, spider = get_args()
-    if tag is not None:
+    '''
+    if tag is not "":
         urls = parse_book_urls(search_book_by_tag(tag))
         if urls is not None:
             for url in urls:
-                parse_book_details(get_detail_by_url(url))
-
-    elif name is not None:
+                book = parse_book_details(get_detail_by_url(url))
+                print book['title']
+                parse_book_sale_on_z(search_book_on_z(book['title']))
+                parse_book_sale_on_j(search_book_on_j(book['title']))
+    '''
+    if name is not None:
         urls = parse_book_urls(search_book_by_name(name))
 
         if urls is not None:
             for url in urls:
-                parse_book_details(get_detail_by_url(url))
-
-
+                book = parse_book_details(get_detail_by_url(url))
+                print book['title']
+                parse_book_sale_on_z(search_book_on_z(book['title']))
+                parse_book_sale_on_j(search_book_on_j(book['title']))
